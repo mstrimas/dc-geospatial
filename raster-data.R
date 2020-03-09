@@ -146,3 +146,106 @@ ggplot() +
   ylab("UTM Northing Coordinate (m)") +
   ggtitle("DSM with Hillshade") +
   coord_quickmap()
+
+# 3. reprojecting raster data ----
+
+# import data, convert to df for plotting
+dtm_harv <- raster("data/NEON-DS-Airborne-Remote-Sensing/HARV/DTM/HARV_dtmCrop.tif")
+dtm_hill_harv <- raster("data/NEON-DS-Airborne-Remote-Sensing/HARV/DTM/HARV_DTMhill_WGS84.tif")
+dtm_harv_df <- as.data.frame(dtm_harv, xy = TRUE) %>% 
+  rename(elevation = HARV_dtmCrop)
+dtm_hill_harv_df <- as.data.frame(dtm_hill_harv, xy = TRUE) %>% 
+  rename(hillshade = HARV_DTMhill_WGS84)
+
+# naive map
+ggplot() +
+  geom_raster(data = dtm_harv_df,
+              aes(x, y, fill = elevation)) +
+  geom_raster(data = dtm_hill_harv_df,
+              aes(x, y, alpha = hillshade)) +
+  scale_fill_gradientn(name = "Elevation", colors = terrain.colors(10)) + 
+  coord_quickmap()
+
+# do they plot fine on their own
+ggplot() +
+  geom_raster(data = dtm_harv_df,
+              aes(x, y, fill = elevation)) +
+  scale_fill_gradientn(name = "Elevation", colors = terrain.colors(10)) + 
+  coord_quickmap()
+ggplot() +
+  geom_raster(data = dtm_hill_harv_df,
+              aes(x, y, alpha = hillshade)) +
+  coord_quickmap()
+
+#> exercise 1
+crs(dtm_harv)
+crs(dtm_hill_harv)
+
+# reproject
+dtm_hill_harv_utm <- projectRaster(dtm_hill_harv, crs = crs(dtm_harv))
+crs(dtm_hill_harv_utm)
+crs(dtm_hill_harv)
+extent(dtm_hill_harv_utm)
+extent(dtm_hill_harv)
+
+# do the resolutions match
+res(dtm_harv)
+res(dtm_hill_harv_utm)
+dtm_hill_harv_utm <- projectRaster(dtm_hill_harv, 
+                                   crs = crs(dtm_harv),
+                                   res = 1)
+
+# plot
+dtm_hill_harv_utm_df <- as.data.frame(dtm_hill_harv_utm, xy = TRUE) %>% 
+  rename(hillshade = HARV_DTMhill_WGS84)
+ggplot() +
+  geom_raster(data = dtm_harv_df,
+              aes(x, y, fill = elevation)) +
+  geom_raster(data = dtm_hill_harv_utm_df,
+              aes(x, y, alpha = hillshade)) +
+  scale_fill_gradientn(name = "Elevation", colors = terrain.colors(10)) + 
+  coord_quickmap()
+
+# 4. raster calculations ----
+
+# look at the dsm and dtm
+plot(dtm_harv)
+plot(dsm_harv)
+chm_harv <- dsm_harv - dtm_harv
+plot(chm_harv)
+
+# distribution
+chm_harv_df <- as.data.frame(chm_harv, xy = TRUE) %>% 
+  rename(canopy_height = layer)
+ggplot(chm_harv_df) +
+  geom_histogram(aes(canopy_height))
+
+# overlay
+chm_harv_ov <- overlay(dsm_harv, dtm_harv,
+                       fun = function(r1, r2) {r1 - r2})
+plot(chm_harv_ov)
+
+# export
+writeRaster(chm_harv_ov, "data/chm_harv.tif")
+
+
+# 5. multi band rasters ----
+
+# raster() loads only one band
+rgb_harv <- raster("data/NEON-DS-Airborne-Remote-Sensing/HARV/RGB_Imagery/HARV_RGB_Ortho.tif")
+rgb_harv
+plot(rgb_harv, col = grey.colors(25))
+
+# import a specific band
+rgb_harv_b2 <- raster("data/NEON-DS-Airborne-Remote-Sensing/HARV/RGB_Imagery/HARV_RGB_Ortho.tif",
+                      band = 2)
+plot(rgb_harv_b2, col = grey.colors(25))
+
+# load the stack
+rgb_harv_stack <- stack("data/NEON-DS-Airborne-Remote-Sensing/HARV/RGB_Imagery/HARV_RGB_Ortho.tif")
+rgb_harv_stack
+# single band
+rgb_harv_stack[[1]]
+
+# plot rgb image
+plotRGB(rgb_harv_stack, r = 1, g = 2, b = 3)
